@@ -1,0 +1,5 @@
+FK104_C_denti	blue
+PD_0092_Cercopithecus_pogonias	mona
+PD_0096_Cercopithecus_mitis	blue
+PPN005_C_wolfi_wolfi	mona
+JH010_C_wolfi_elegans	mona

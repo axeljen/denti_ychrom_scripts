@@ -1,0 +1,9 @@
+denti	denti
+wolfi	wolfi
+pogonias	xxx
+mona	xxx
+neglectus	xxx
+mitis	mitis
+nictitans	xxx
+cephus	xxx
+macaque	Outgroup

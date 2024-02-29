@@ -1,0 +1,8 @@
+FK104_C_denti	denti
+GP611_C_wolfi_elegans	wolfi
+JH010_C_wolfi_elegans	wolfi
+JH026_C_denti	denti
+PD_0096_Cercopithecus_mitis	mitis
+PPN005_C_wolfi_wolfi	wolfi
+SAMN03264642_Macaca_mulatta	mmul
+

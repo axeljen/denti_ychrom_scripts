@@ -28,7 +28,7 @@ I did this as described in sample_loci.sh. Note that this is a rather bulky scri
 2. Create the control file to use with bpp. I followed the bpp documentation and created two msci models, each with three migration bands but model_2 has the timing of gene-flow event 1 and 2 switched around. The control files I used are included in this repository.
 
 3. Run bpp. I ran two independent runs per model on a slurm cluster:
-
+```
 	mkdir model_1_run1 model_1_run2 model_2_run1 model_2_run2
 	cp model_1.ctl model_1_run1
 	sbatch run_bpp.sh model_1_run1/model_1.ctl
@@ -38,7 +38,7 @@ I did this as described in sample_loci.sh. Note that this is a rather bulky scri
 	sbatch run_bpp.sh model_2_run1/model_2.ctl
 	cp model_2.ctl model_2_run2
 	sbatch run_bpp.sh model_2_run2/model_2.ctl
-
+```
 4. bpp_parse.R was used to compare, join and summarize the mcmc output from bpp, and to plot the results. Note that this script is very specific to this usecase, and visualizing the output of bpp can be done in many ways. The script needs the following packages (versions I used are indicated here): tidyverse/2.0.0, bppr/0.6.3, ape/5.8, coda/0.19-4.1, ggpubr/0.6.0, psych/2.4.3, MoreTreeTools/0.0.1, treeio/1.26.0, ggrepel/0.9.5.
 
 

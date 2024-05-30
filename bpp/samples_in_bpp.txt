@@ -1,0 +1,9 @@
+PD_0407_Cercopithecus_neglectus
+FK104_C_denti
+GP611_C_wolfi_elegans
+SAMN13555793_Cercopithecus_mona
+PD_0033_Cercopithecus_nictitans_nictitans
+PD_0092_Cercopithecus_pogonias
+PD_0096_Cercopithecus_mitis
+PD_0094_Cercopithecus_cephus
+SAMN03264642_Macaca_mulatta

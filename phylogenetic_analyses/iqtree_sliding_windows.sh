@@ -33,6 +33,7 @@ MODEL="GTR"
 WINDOW=25000
 STEP=500000
 MAX_MISSING=0.1
+
 # path to python script
 PYTHONSCRIPTS=/home/axeljen/phylogenomics
 

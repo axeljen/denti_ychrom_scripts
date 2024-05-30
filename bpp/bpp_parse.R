@@ -1,38 +1,35 @@
 rm(list = ls())
-# set working directory to where you're outputs are stored
-setwd("/path/to/bpp/out")
+setwd("/Users/axeljensen/Dropbox/notes/Attachments/denti-lesula/bpp")
 library(tidyverse)
-#devtools::install_github("dosreislab/bppr")
 library(bppr)
 library(ape)
-library(stringr)
 library(coda)
 library(ggpubr)
 library(psych)
 library(MoreTreeTools)
-library(ggtree)
 library(treeio)
 library(ggrepel)
+
 # specify a basename that will be used for saving plots
-NAME <- "msci_model_1"
+NAME <- "output_name"
 
 # will make a directore in current workdir
 dir.create(NAME)
 
 # I ran two independent runs for each model, read those two in
-mcmc1 <- read_tsv("model_1_run1_out.txt")
-mcmc2 <- read_tsv("model_1_run2_out.txt")
+mcmc1 <- read_tsv("model_XX_run1_output.txt")
+mcmc1 <- read_tsv("model_XX_run2_output.txt")
 
 # manually specify the order of the tips, from bottom to top
 tiporder <- c("C.denti","C.wolfi","C.pogonias","C.mona","C.neglectus","C.mitis","C.nictitans","C.cephus")
 
-### If there are hybrid nodes, specify those here
+### Specify hybrid nodes as they're specified in the control file
 hybrid_sources <- c("A","P","Z")
 hybrid_dests <- c("B","Q","W")
 
 
-# fetch topology from the outfile (this is only used for plotting the topology, branch lengths and Nes are fetched from the mcmc output)
-outfile <- read_file("model_1_run1_out.txt")
+# fetch topology from the outfile
+outfile <- read_file("model_XX_run1_output.txt")
 outfile <- str_split(outfile, "\n")
 
 # reduce size as the tree will be towards the end
@@ -86,9 +83,7 @@ sum <- mcmc2 %>%
   # bind this together with the first run
   left_join(run1_sum,.,by = "name")
 
-# plot them against each other (skip the lnl as this will screw up the axis)
-cplot <- ggplot(sum[sum$name != "lnL",], aes(x = mean_run1, y = mean_run2)) +
-  geom_point()
+## Compare estimates from the two runs
 
 # plot times and Nes separately against each other for more detail
 tauplot <- ggplot(sum[grepl("tau_", sum$name),], aes(x = mean_run1, y = mean_run2)) +
@@ -143,10 +138,7 @@ conf.joint<- as.data.frame(coda::HPDinterval(coda::as.mcmc(times.joint))) %>%
 joint <- means.joint %>%
   left_join(., conf.joint, by = "stat")
 
-conf.joint
-
 # fetch the scaling factor to get the correct branch lengths in generations/years
-# for now the actual scaling I'm doing in treeviewer
 
 # fetch the times for internal nodes
 tau.originals <- mcmc.joint %>%
@@ -178,6 +170,7 @@ for (node in top$tip.label) {
   scaled.times <- rbind(scaled.times,
                         dftimes)
 }
+
 # remove the "t_xx" prefix
 scaled.times <- scaled.times %>%
   mutate(nodename = gsub("t_\\d{2}", "", nodename))
@@ -191,11 +184,11 @@ times.translate <- tau.originals %>%
   # add scaling factor in 1,000,000 units
 
 # add info on type of node
+times.translate$nodetype <- NA
 for (tip in top$tip.label){
   times.translate$nodetype[times.translate$nodename == tip] <- "tip"
 }
 for (node in top$node.label){
-  print(node)
   times.translate$nodetype[times.translate$nodename == node] <- "node"
 }
 for (hybsource in hybrid_sources) {
@@ -225,6 +218,7 @@ nes.translate <- theta.originals %>%
   mutate(scale_factor_ne = mean_ne / mean_theta)
 
 print("Creating the master data frame with all branches, ages and Nes.")
+
 # now let's make a "master" table with all necessary info
 d <- left_join(times.translate, nes.translate,
                by = "nodename")
@@ -232,8 +226,8 @@ d <- left_join(times.translate, nes.translate,
 ########### Break out the Nes for all branches to increase readability
 
 print("Averaging/scaling the Nes of branches affected by hybridization, to only have one Ne per branch.")
-# now, we' need to'll adjust the nes to the harmonic means for branches affected by hybrid events
-# as the tree will look awful otherwise
+
+# take harmonic mean Ne of branches containing hybrid node
 hybrid_branches <- data.frame(from = character(), through_1 = character(),
                               through_2 = character(),
                               to = character())
@@ -336,11 +330,13 @@ print(paste0("Cutting the tree off at a root of ", root_t, " years ago."))
 # drop macaque as we don't want to plot this
 print("Removing unwanted branches from the tree.")
 top <- drop.tip(top, "M.mulatta")
+
 # and also remove the "true" root from the data table
 d <- d %>%
   filter(node != "guenon_rootM.mulatta") %>%
   filter(node != "M.mulatta") %>%
   mutate(parent = if_else(parent == "guenon_rootM.mulatta", "root", parent))
+
 # and anyones containing "source"
 falsetips <- top$tip.label[grepl("source",top$tip.label)]
 top <- drop.tip(top, falsetips)
@@ -542,6 +538,7 @@ p <- ggplot() +
   theme_void() +
   theme(legend.position = "none")
 p
+
 ggsave(paste0(NAME, "/",NAME,"tree.pdf"), p)
 
 }

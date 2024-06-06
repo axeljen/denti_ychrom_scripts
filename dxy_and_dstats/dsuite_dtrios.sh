@@ -1,9 +1,9 @@
 #!/bin/bash
 
-#SBATCH -A snic2022-5-561
+#SBATCH -A naiss2023-5-506
 #SBATCH -p core
 #SBATCH -n 1
-#SBATCH -t 3-00:00:00
+#SBATCH -t 1-05:00:00
 #SBATCH -J dsuite
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=axel.jensen@ebc.uu.se
@@ -17,7 +17,7 @@ INPUT_VCF=$1
 
 SETS=$2
 
-OUT=all-samples
+OUT=dstat-all-samples
 
 mkdir -p ${OUT}
 

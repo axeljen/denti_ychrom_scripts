@@ -5,4 +5,3 @@ JH026_C_denti	denti
 PD_0096_Cercopithecus_mitis	mitis
 PPN005_C_wolfi_wolfi	wolfi
 SAMN03264642_Macaca_mulatta	mmul
-

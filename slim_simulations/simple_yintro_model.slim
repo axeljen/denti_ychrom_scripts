@@ -1,0 +1,73 @@
+initialize() {
+// selection coefficient to use
+// set mutation rate
+initializeMutationRate(1e-9);
+initializeMutationType("m1", 0.5, "f", 0.0); 
+initializeMutationType("m2", 1, "f", s); // introduced mutation 
+initializeGenomicElementType("g1", m1, 1.0); 
+//initializeGenomicElementType("g2",m1, 1.0);
+initializeGenomicElement(g1, 0, 99999);
+// set recombination rate
+initializeRecombinationRate(1e-8);
+// Model Y-chromosome evolution
+initializeSex("Y");
+} 1 early(){
+	// save this run's identifier, used to save and restore
+	defineConstant("simID", getSeed());
+	defineConstant("sexRatio", 0.5);
+	// start populations
+	sim.addSubpop("p1", popsize);
+	p1.setSexRatio(sexRatio);
+   }
+
+	1 late() {
+	// Introduce a new mutation to mimick an introgression event.
+	// The mutation should be introduced to i number of individuals, which should be equivalent to the introgression frequency.
+	i = sample(p1.individuals[p1.individuals.sex == "M"], asInteger(round(popsize * introprop)));
+	mut = i.genome2.addNewDrawnMutation(m2, 10000);
+	defineConstant("YCHROM",mut);
+	counts = sim.mutationCounts(NULL, mut);
+	// keep track of actual Y chromosome allele frequency
+	freq = counts / length(p1.individuals[p1.individuals.sex == "M"]);
+	//cat(freq + "\n");
+	cat(counts / length(p1.individuals[p1.individuals.sex == "M"]) + "\n");
+	p1.setValue("yfreq", freq);
+	p1.setValue("selection_coefficient",s);
+	p1.setValue("introprop", introprop);
+	p1.setValue("popsize", popsize);
+	p1.setValue("sexratio", sexRatio);
+	p1.setValue("simID", name + "_" + iteration);
+	// Set some constants for logging the results
+	defineConstant("NAME", name + "_" + iteration + "_N-" + popsize + "_Intro-" + introprop + "_s-" + s);
+	defineConstant("LOG", community.createLogFile(NAME + ".txt", logInterval=10));
+	LOG.addCycle();
+	LOG.addCustomColumn("introgressed_Y_freq", "p1.getValue('yfreq');");
+	LOG.addCustomColumn("selection_coefficient", "p1.getValue('selection_coefficient');");
+	LOG.addCustomColumn("introprop", "p1.getValue('introprop');");
+	LOG.addCustomColumn("popsize", "p1.getValue('popsize');");
+	LOG.addCustomColumn("sexratio", "p1.getValue('sexratio');");
+	LOG.addCustomColumn("simID", "p1.getValue('simID');");
+
+	}
+	1:100000 late() {
+	if (!YCHROM.isSegregating)
+	{	
+		if (YCHROM.isFixed)
+		{
+			p1.setValue("yfreq",1);
+			}
+		else
+		{
+			p1.setValue("yfreq",0);
+		}
+		LOG.logRow();
+		cat(ifelse(YCHROM.isFixed,"Fixed!\n","Lost!\n"));
+		sim.simulationFinished();
+		}
+	else 
+	{
+	i = length(p1.individuals[p1.individuals.sex == "M"]);
+	counts = sim.mutationCounts(NULL, YCHROM);
+	p1.setValue("yfreq", counts / i);
+	}
+	}

@@ -1,0 +1,1 @@
+Two subset (1 Mb each) vcf files just as examples when running some of the scripts.

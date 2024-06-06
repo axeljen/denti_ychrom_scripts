@@ -45,7 +45,6 @@ def prep_tree(tree, foreground_clades, outgroup=None):
 				node.add_feature("label","foreground")
 	# make the treestring
 	treestring = re.sub("\[&&NHX:label=foreground\]", " #1",tree.write(format=9, features=["label"]))
-	print(treestring)
 	return treestring
 
 # read alignment file

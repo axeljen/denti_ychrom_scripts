@@ -5,4 +5,6 @@ https://github.com/axeljen/phylogenomics
 
 After cloning that repo, you need to adjust the path in the Python scripts to point to the correct location of the scripts.
 
-Other dependencies are listed in the readme's of the respective directories.
+Other dependencies are listed in the readme's of the respective directories, which also contains more detailed documentation for each subsection.
+
+These scripts were mostly written to be run on a SLURM cluster, where most software are installed as modules. They will need modification to be run on other systems.

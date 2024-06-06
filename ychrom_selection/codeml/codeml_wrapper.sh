@@ -5,7 +5,7 @@ name=bsm_denti-mitis
 
 
 # path to alignmnent to analyze
-aln=ychrom_aln.phy
+aln=../gene_alignments/KDM5D_XP_014984073.1.phy
 # tree
 tree="tree_allmales.nwk"
 # samples 

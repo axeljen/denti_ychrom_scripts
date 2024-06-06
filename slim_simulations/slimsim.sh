@@ -28,23 +28,25 @@ mkdir -p ${OUTDIR}
 
 
 # running reps sequenctailly
-NREPS=2
+NREPS=100
 
+
+# make a unique name of simulation from slurm job id
+name=${SLURM_JOB_ID}
 
 for i in $(seq 1 ${NREPS})
 do
-name=${SLURM_JOB_ID}
 
 # run slim
 slim \
-	-d name=${name} \
+	-d name="${name}" \
 	-d iteration=${i} \
 	-d s=${SEL} \
 	-d popsize=${POPSIZE} \
 	-d introprop=${INTROPROP} \
 	${SLIMSCRIPT}
 
-# move output to results folder
-mv ${name}_${i}_N-${POPSIZE}_Intro-${INTROPROP}_s-${SEL}.txt ${OUTDIR}
-
 done
+
+# move all output to results folder
+mv ${name}_*.txt ${OUTDIR}

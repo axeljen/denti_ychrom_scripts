@@ -4,7 +4,7 @@
 #SBATCH -p core
 #SBATCH -n 1
 #SBATCH -t 0-01:00:00
-#SBATCH -J jobname
+#SBATCH -J autosims
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=axel.jensen@ebc.uu.se
 #SBATCH -o ./logs/%x-%j.out

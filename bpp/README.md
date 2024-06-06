@@ -2,7 +2,7 @@ Scripts used to run the bpp-msci models.
 
 Controlfiles for the two models included in the manuscript are included, where model 1 is presented in the main paper and 2 in the supplementary material.
 
-I'd run two independent runs for each model, and then check convergence and merge them.
+I ran two independent runs for each model, and then check convergence and merge them.
 
 the run_bpp.sh script is just the execution script to actually run bpp.
 
@@ -28,8 +28,10 @@ I did this as described in sample_loci.sh. Note that this is a rather bulky scri
 2. Create the control file to use with bpp. I followed the bpp documentation and created two msci models, each with three migration bands but model_2 has the timing of gene-flow event 1 and 2 switched around. The control files I used are included in this repository.
 
 3. Run bpp. I ran two independent runs per model on a slurm cluster:
-```
+```bash
+	# make output directories
 	mkdir model_1_run1 model_1_run2 model_2_run1 model_2_run2
+	# copy control files to output directories and submit jobs
 	cp model_1.ctl model_1_run1
 	sbatch run_bpp.sh model_1_run1/model_1.ctl
 	cp model_1.ctl model_1_run2

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH -A snic2022-5-561
+#SBATCH -A naiss2023-5-506
 #SBATCH -p node
 #SBATCH -N 1
 #SBATCH -t 1-00:00:00
@@ -18,6 +18,9 @@ SCRIPT_PATH=/home/axeljen/genomics_general
 
 # give the full path to vcf as command line input
 INPUT_VCF=${1}
+
+# will write to ./out, make sure it exists
+mkdir -p out
 
 # popfile as second 
 POPS=fd_popfile.txt

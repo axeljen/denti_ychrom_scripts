@@ -4,7 +4,6 @@ from Bio import bgzf
 import sys
 
 # take the proportion of gene flow from mitis to denti as a command line argument
-#gf_prop = 0.004
 gf_prop = float(sys.argv[1])
 
 # out prefix as second
@@ -44,7 +43,7 @@ Nes = {
 	'root': 270000 / scale_factor,
 }
 
-# dictionary with split times
+# dictionary with split times (in years)
 split_times = {
 	'denti': 0,
 	'wolfi': 0,

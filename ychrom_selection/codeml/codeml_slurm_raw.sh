@@ -1,9 +1,9 @@
 #!/bin/bash
 
-#SBATCH -A snic2022-5-561
+#SBATCH -A naiss2023-5-506
 #SBATCH -p core
 #SBATCH -n 1
-#SBATCH -t 2-00:00:00
+#SBATCH -t 0-05:00:00
 #SBATCH -J codeml
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=axel.jensen@ebc.uu.se
@@ -13,7 +13,7 @@
 set -e
 
 # load modules
-module load bioinfo-tools paml
+module load bioinfo-tools paml/4.9j
 
 # take some arguments from the command line
 aln=$1

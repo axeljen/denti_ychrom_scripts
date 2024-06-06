@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH -A snic2022-5-561
+#SBATCH -A naiss2023-5-506
 #SBATCH -p node
 #SBATCH -N 1
 #SBATCH -t 1-00:00:00

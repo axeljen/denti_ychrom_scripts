@@ -1,9 +1,0 @@
-FK104_C_denti	blue
-ME403_C_mitis_stuhlmanni	blue
-PD_0033_Cercopithecus_nictitans_nictitans	blue
-SAMN13555794_Cercopithecus_nictitans	blue
-PD_0090_Cercopithecus_nictitans	blue
-PD_0092_Cercopithecus_pogonias	mona
-PD_0096_Cercopithecus_mitis	blue
-PPN005_C_wolfi_wolfi	mona
-JH010_C_wolfi_elegans	blue

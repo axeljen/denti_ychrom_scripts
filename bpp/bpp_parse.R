@@ -17,8 +17,8 @@ NAME <- "output_name"
 dir.create(NAME)
 
 # I ran two independent runs for each model, read those two in
-mcmc1 <- read_tsv("model_XX_run1_output.txt")
-mcmc1 <- read_tsv("model_XX_run2_output.txt")
+mcmc1 <- read_tsv("model_XX_run1_output.mcmc")
+mcmc2 <- read_tsv("model_XX_run2_output.mcmc")
 
 # manually specify the order of the tips, from bottom to top
 tiporder <- c("C.denti","C.wolfi","C.pogonias","C.mona","C.neglectus","C.mitis","C.nictitans","C.cephus")

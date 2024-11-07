@@ -1,0 +1,1021 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+---
+
+# Y chromosome introgression between deeply divergent primate species
+
+This markdown file contains code necessary to recreate (most of) the figures from the manuscript 'Y chromosome introgression between deeply divergent primate species', by Jensen et al. 2024.
+
+Phylogenetic trees are not included here, as they were generated with gui software (TreeViewer).
+
+## Figure 2
+
+The base maps were created using the code below, but substantial post-processing was done in affinity designer, including range-overlap patterns and general styling. Note that this chunk will error if you haven't downloaded the "MAMMALS_TERRESTRIAL_ONLY.shp" shapefile from IUCN and adjusted the path accordingly.
+
+```{r warning=FALSE, include=TRUE, message=FALSE, echo=FALSE}
+# requires the following packages
+library(sf)
+library(tidyverse)
+library(rnaturalearth)
+library(ggsflabel)
+
+# this will make the graphics show quicker and avoid stalling (don't know why)
+if(!identical(getOption("bitmapType"), "cairo") && isTRUE(capabilities()[["cairo"]])){
+  options(bitmapType = "cairo")
+}
+# iucn ranges, the shapefile need to be downloaded from IUCN and the path needs to be adjusted accordingly
+iucn <- st_read("path/to/MAMMALS_TERRESTRIAL_ONLY.shp")
+
+# vector with taxa to include, make sure they're names exactly match the shape file
+taxa <- c("Cercopithecus mitis","Cercopithecus albogularis","Cercopithecus nictitans",
+          "Cercopithecus denti", "Cercopithecus pogonias","Cercopithecus mona",
+           "Cercopithecus wolfi","Cercopithecus lowei","Cercopithecus campbelli")
+
+# get these ranges only
+ranges <- iucn %>%
+  filter(sci_name %in% taxa)
+
+# upgrade albogularis to species following lo bianco et al
+ranges$sci_name[ranges$subspecies == "albogularis" |
+              ranges$subspecies == "albotorquatus" |
+              ranges$subspecies == "erythrarchus" |
+              ranges$subspecies == "francescae" |
+              ranges$subspecies == "kibonotensis" |
+              ranges$subspecies == "kolbi" |
+              ranges$subspecies == "labiatus" |
+              ranges$subspecies == "moloneyi" |
+              ranges$subspecies == "monoides" |
+              ranges$subspecies == "phylax" |
+              ranges$subspecies == "schwarzi" |
+              ranges$subspecies == "zammaranoi"] <- "Cercopithecus albogularis"
+ranges$subspecies[ranges$subspecies == "albogularis"] <- NA
+
+# add species group data for coloring
+ranges <- ranges %>%
+  # mitis, albogularis and nictians should be mitis group, the rest is mona
+  mutate(spgroup = if_else(sci_name == "Cercopithecus mitis" |
+                             sci_name == "Cercopithecus albogularis" |
+                             sci_name == "Cercopithecus nictitans", "mitis","mona"))
+
+# now we need to join geometries of the same species
+# will also add column to indicate whether it is the "nominate" row or not per species, will use this then for plotting
+ranges$nominate <- FALSE
+curr.sp <- "none"
+# make sure they're arranged by sci_name name
+ranges <- ranges %>%
+  arrange(sci_name)
+for (i in 1:nrow(ranges)){
+  if (ranges$sci_name[i] != curr.sp){
+    ranges$nominate[i] <- TRUE
+    ranges$geometry[i] <- st_union(st_make_valid(ranges$geometry[ranges$sci_name == ranges$sci_name[i]]))
+  }
+  curr.sp <- ranges$sci_name[i]
+}
+sf_use_s2(FALSE)
+
+# prep the Africa background map
+africa <- ne_countries(scale = "small", returnclass = "sf", continent = "africa") %>%
+  st_transform(crs = 4326)
+
+# make the base large map
+map <- ggplot(data = africa, size = 0.005) +
+  # plot countries
+  geom_sf(fill = "white", size = 0.05, linewidth = 0.2) +
+  # plot mona
+  geom_sf(data = ranges[ranges$spgroup == "mona" & ranges$nominate == TRUE,],
+          fill = "#FCB564", color = "black", alpha = .8,
+          linewidth = 0.1) +
+  # plot mitis group on top
+  geom_sf(data = ranges[ranges$spgroup == "mitis" & ranges$nominate == TRUE,],
+          fill = "#81B2D5", color = "black", alpha = .8,
+               linewidth = 0.1) +
+  # clean it up a little
+  theme(panel.background = element_blank(),
+        panel.grid = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank()) +
+  labs(x = "", y = "")
+map
+
+# zoomed in plot around denti
+denticropped <- st_crop(africa,xmin = 20, xmax = 35, ymin = -15, ymax = 7)
+
+# mitis pops around denti
+mitpops <- ranges %>%
+  filter(sci_name %in% c("Cercopithecus mitis","Cercopithecus albogularis","Cercopithecus nicticans"))
+
+dentimap <- ggplot(data = denticropped, size = 0.005) +
+  geom_sf(fill = "white", size = 0.05, linewidth = 0.2) +
+  geom_sf(fill = "white", linewidth = 0, alpha = .8) +
+  geom_sf(data = ranges[ranges$sci_name == "Cercopithecus denti",], fill = "#FCB564", color = "black", alpha = .8,
+          linewidth = 0.1) +
+  geom_sf(data = mitpops,alpha = .8,
+          linewidth = .2, fill = "#81B2D5") +
+  theme(legend.position = "none", axis.text = element_blank(), axis.ticks = element_blank(),
+        panel.background = element_blank()) +
+        labs(y = "", x = "")
+dentimap
+
+```
+
+## Figure 3C
+
+Figure 3A and 3B are just schematic illustrations made in affinity designer. Figure 3C was generated with the following code.
+
+```{r message=FALSE, warning=FALSE}
+# need the following libraries
+library(tidyverse)
+library(ggrastr)
+library(ggpubr)
+library(scales)
+
+# read the dxy from source files
+dxy <- read_csv("fig_3c.txt")
+# paste pops together for simpler parsing
+dxy$pair <- paste0(dxy$pop1, "_", dxy$pop2)
+
+# pairs should be ordered by increasing dxy on X, so get the order
+dxy.means <- dxy %>%
+  group_by(pair, chromtype) %>%
+  summarize(mean.dxy = mean(avg_dxy)) %>%
+  filter(chromtype == "auto") %>%
+  arrange(mean.dxy) %>%
+  ungroup() %>%
+  mutate(sortorder = row_number())
+
+# make dxy pairs into a factor based on this, and clean up the labels a little
+labels <- c("C denti vs. C. wolfi",
+            "C. pogonias vs. C wolfi",
+            "C. nictitans vs. C. mitis",
+            "C. cephus vs. C. mitis",
+            "C. mitis vs. C. wolfi",
+            "C. denti vs. C. mitis")
+
+dxy <- dxy %>%
+  mutate(pair = factor(pair, levels = dxy.means$pair,
+                       labels = labels))
+
+# pull out denti and mitis comparison, which we'll keep in its own panel
+pdent <- dxy %>%
+  filter(pop1 == "FK104_C_denti" & pop2 == "PD_0096_Cercopithecus_mitis" & chromtype != "x") %>%
+  ggplot(., aes(x = chromtype, y = avg_dxy, fill = chromtype)) +
+  facet_wrap(~pair, nrow = 1) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter_rast(alpha = .06, width = .1) +
+  theme_minimal() +
+  ylim(c(0,0.05)) +
+  labs(y = "dxy", x = "") +
+  theme(axis.text.x = element_blank(), 
+        legend.position = "bottom",
+        axis.ticks.x = element_blank())
+pdent
+# and remaining comparisons
+prest <- dxy %>%
+  filter(pair != "C. denti vs. C. mitis") %>%
+  filter(chromtype != "x") %>%
+  ggplot(., aes(x = chromtype, y = avg_dxy, fill = chromtype)) +
+  facet_wrap(~pair, nrow = 1) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter_rast(alpha = .06, width = .1) +
+  theme_minimal() +
+  ylim(c(0,0.05)) +
+  labs(y = "dxy", x = "") +
+  theme(axis.text.x = element_blank(), 
+        legend.position = "bottom",
+        axis.ticks.x = element_blank(),
+        strip.text =  element_text(size = 6))
+
+##  add coalescence time to second axis
+# first scale dxy to coalescent time
+mu <- 4.82e-09 # mu from Kuderna et al. 2023
+g <- 10 # genereation time of 10
+dxy <- dxy %>%
+  mutate(t = (avg_dxy / (2*mu)) * g)
+
+# get the breaks of the second axis (coalescence time), to correspond with dxy breaks
+c.breaks <- c(0,(0.01 / (2*mu)) * g,
+              (0.02 / (2*mu)) * g,
+              (0.03 / (2*mu)) * g,
+              (0.04 / (2*mu)) * g,
+              (0.05 / (2*mu)) * g)
+
+prest <- prest +
+  scale_y_continuous(name = "", 
+                     sec.axis = sec_axis(transform = ~(. / (2*mu)) * g, 
+                                         name = "Coalescence time (years)",
+                                                       breaks = c.breaks,
+                                         labels = scales::label_comma(accuracy = 0.1,
+                                                                      scale = 1/1000000)))
+
+# make a rough combined plot of the two, that we can then style manually using affinity
+arr <- ggarrange(pdent, prest, widths = c(1.5,6), common.legend = T)
+
+arr
+```
+
+## Figure 4
+
+The source data for figure 4 is available in source_data/figure_4.txt
+
+Figure 4 was generated with the following code.
+
+```{r}
+# need the following libraries
+library(tidyverse)
+
+# read dstat output, these are Dsuite output that have been parsed and processed a little:
+## Dsuite orders P1 and P2 such that D is always positive, here I've reordered such that 
+# C denti is always P2, that is, wherever denti was ordered as P1 in the raw Dsuite output
+# the sign of the D-value has been flipped
+## I've added columns specifying the species of P1, P2 and P3.
+dstats <- read_csv("figure_4.txt")
+
+# make p3 and p1 factors
+dstats$P3.species <- factor(dstats$P3.species, levels = c("C_mitis/albogularis",
+                                                  "C_nictitans"),
+                            labels = c("C_mitis/albogularis","C_nictitans"))
+dstats$P1.species <- factor(dstats$P1.species, levels = c("C_mona","C_pogonias",
+                                                          "C_wolfi"))
+
+# annotate rows where opisthostictus is P3
+dstats <- dstats %>%
+  mutate(label = ifelse(P3 == "PD_0096_Cercopithecus_mitis" & 
+                          P1.species %in% c("C_wolfi","C_pogonias"),
+                        "ssp. opisthostictus", NA)) %>%
+  # set significant cutoff
+  mutate(sig = ifelse(`Z-score` > 3, TRUE, FALSE))
+
+# plot
+pd <- ggplot(dstats, 
+             aes(x = P3.species, y = Dstatistic, label = label)) +
+  facet_wrap(~P1.species, nrow=1) +
+  geom_point(size = 2.5, aes(color = sig), 
+             position = position_jitter(width = .05, seed = 12345)) +
+  geom_point(data = dstats, size = 1.5, 
+             aes(shape = label),
+             position = position_jitter(width = .05, seed = 12345),
+             color = "red") +
+  scale_color_manual(values=c("grey","black")) +
+  scale_shape_manual(values = c(8,1)) +
+  theme_bw() +
+  theme(legend.position = "none") +
+  labs(x = "P3 lineage", y = "D-statistic")
+
+pd
+
+```
+
+## Figure 5
+
+The demographic history modelled with bpp was visualized using the standalone script available here: <https://github.com/axeljen/denti_ychrom_scripts/tree/master/bpp>. Figure 5, S9 and S10 can be recreated with this script and the source data that is in source_data/bpp_figures_5_s9_s10
+
+## Figure 6
+
+The output for recreating figure 6A and B is in the source data directory. Use the following code to generate these figures.
+
+```{r}
+# Load necessary libraries
+library(tidyverse)
+library(ggpubr)
+
+## Figure 6A
+# read Dstats estimated from msprime sims
+sims <- read_tsv("figure_6a.tsv", col_names = T)
+
+# order by ascending geneflow proportion
+sims <- sims %>%
+  arrange(geneflow_prop) %>%
+  # change geneflow_prop to percentage
+  mutate(geneflow_percent = geneflow_prop * 100) %>%
+  # set to significant if Z >= 3
+  mutate(is_significant = if_else(Z >= 3, TRUE, FALSE)) %>%
+  # make factor of geneflow_percent
+  mutate(geneflow_percent = factor(geneflow_percent, levels = unique(geneflow_percent))) %>%
+  # make factor of significanc elevel
+  mutate(is_significant = factor(is_significant, levels = c(FALSE,TRUE)))
+
+# plot yhe dstats
+pd <- ggplot() +
+  geom_boxplot(outlier.shape = NA, data = sims, aes(x = geneflow_percent, y = D)) +
+  geom_jitter(data = sims, width = .15, height = 0, 
+              aes(x = geneflow_percent, y = D, shape = is_significant)) +
+  scale_shape_manual(values= c(1,19)) +
+  labs(y = "D-statistic", x = "Autosomal migration C. mitis -> C. denti (%)") +
+  theme_bw() +
+  theme(legend.position = "none") +
+  # add a horizontal dashed line with the highest observed empirical D
+  geom_hline(yintercept = 0.012, color = "red", linetype = "dashed") +
+  theme(plot.background = element_blank())
+
+# Figure 6B
+# read the slim output
+sims <- read_csv("figure_6b.csv")
+
+# summarize simulation outcomes
+simsum <- sims %>%
+  group_by(selection_coefficient, introprop, simID) %>%
+  summarize(ngen = max(cycle), maxfreq = max(introgressed_Y_freq),
+            minfreq = min(introgressed_Y_freq),
+            mingen = min(cycle)) %>%
+  # if minfreq is 0 its lost
+  mutate(outcome = ifelse(minfreq == 0, "lost", "segregating")) %>%
+  # if it's one its fixed
+  mutate(outcome = ifelse(maxfreq == 1, "fixed", outcome))
+
+# count the occurrences for all different combinations of introprop and selection
+simsum <- 
+  simsum %>%
+  group_by(introprop, selection_coefficient) %>%
+  count(outcome)
+
+# order by intro and selection
+simsum <- simsum %>%
+  arrange(introprop, selection_coefficient) %>%
+  # make factors
+  mutate(introprop = factor(introprop, levels = unique(introprop))) %>%
+  mutate(selection_coefficient = factor(selection_coefficient, 
+                                        levels = unique(selection_coefficient))) %>%
+  mutate(outcome = factor(outcome, levels = c("segregating","fixed","lost")))
+
+# make a barchart
+pslim <- ggplot(simsum, aes(x = introprop, y = n,
+                   fill = outcome)) +
+  facet_wrap(vars(selection_coefficient), nrow = 5) +
+  geom_col() +
+  theme_bw() + 
+  scale_fill_manual(values = c("#FFAE70","#6DB3D1","#B21531")) +
+  # add labels with fixation count
+  geom_text(data = simsum[which(simsum$outcome == "fixed"),],aes(label = n, y = 50)) +
+  labs(y = "Simulation count", x = "Initial allele frequency",
+       fill = "") +
+  theme(legend.position = "top")
+
+# arrange the dstat and slim simulation results
+psim.arr <- ggarrange(pd, pslim, ncol = 2, widths = c(2,1))
+psim.arr
+```
+
+## Figure S3
+
+MCMCTree divergence date summaries for autosomes and Y chromosomes was generated with the following code.
+
+```{r}
+
+# Autosomal mcmc summaries
+
+# fetch parsed mcmcfile, this is just all the mcmc runs for the 20 runs concatenated, with a
+# column indicating where they come from
+mcmc <- read_tsv("fig_1b_s2_s3.txt")
+
+# make the node estimates long
+mcmc.long <- mcmc %>%
+  pivot_longer(cols = starts_with("t_"), names_to = "node", values_to = "age")
+
+# make a plot, column named "aln" is the one separating the different loci, we'll use that as our X here
+p.auto <- ggplot(mcmc.long, aes(x=aln, y = age, fill = run, color = run)) +
+  facet_wrap(~node) +
+  geom_violin() +
+  theme_bw() +
+  theme(legend.position = "bottom", axis.text.x = element_blank())
+
+# the nodenames were manually relabelled to readable names, we can do that after manually assigning each node to a name:
+nodes <- unique(mcmc.long$node)
+nodelabs <- c("Root","Crown Cercopithecini","Cercopithecus+Miopithecus","Cercopithecus","mona+neglectus+diana+cephus+mitis",
+              "mona+neglectus+diana","mona+neglectus","mona","C. denti+C. wolfi+C. pogonias","C. denti+C. wolfi",
+              "C. mona+C. lowei","diana","cephus+mitis","cephus","C. cephus+C. ascanius",
+              "mitis","terrestrial clade","Allochr+Chloroc+Erythroc","Allochrocebus","A. lhoesti+A. preussi",
+              "Erythrocebus+Chlorocebus","Chlorocebus","Chl. pygerythrus + Chl. sabaeus","Crown Papionini")
+
+# change the nodelabels to this
+nodelabs.df <- data.frame(oldlabs = nodes, newlabs = nodelabs)
+mcmc.long <- mcmc.long %>%
+  mutate(node = nodelabs.df$newlabs[match(node, nodelabs.df$oldlabs)]) %>%
+  # make a factor for keeping the order consistent
+  mutate(node = factor(node, levels = unique(node)))
+
+# and regenerate the figure
+p.auto <- ggplot(mcmc.long, aes(x=aln, y = age, fill = run, color = run)) +
+  facet_wrap(~node) +
+  geom_violin() +
+  theme_bw() +
+  theme(legend.position = "bottom", axis.text.x = element_blank(),
+        strip.text = element_text(size = 4))
+p.auto
+
+# and then do the Y chromosomal estimates too
+mcmc <- read_tsv("figure_1b_s4.txt")
+
+# make the node estimates long
+mcmc.long <- mcmc %>%
+  pivot_longer(cols = starts_with("t_"), names_to = "node", values_to = "age")
+
+# make a plot, and use the "run" column only here, instead of the aln as above (we only have one locus here)
+p.y <- ggplot(mcmc.long, aes(x=run, y = age, fill = run, color = run)) +
+  facet_wrap(~node) +
+  geom_violin() +
+  theme_bw() +
+  theme(legend.position = "bottom", axis.text.x = element_blank())
+
+# correct the names as above
+nodes <- unique(mcmc.long$node)
+nodelabs <- c("Root","Crown Cercopithecini","Crown Cercopithecus","hamlyni+cephus+mitis+C. denti", "cephus+mitis+C.denti",
+              "mitis+C.denti","C. mitis+C. denti","cephus","C. ascanius+C. cephus","diana+neglectus+mona",
+              "neglectus+mona","mona","C. wolfi+C. pogonias","C. lowei+C. mona","terrestrial clade",
+              "Allochr+Erythr+Chloroc","Allochr+Erythr","Allochrocebus","Chlorocebus","Chl. pygerythrus+Chl. sabaeus","Crown Papionini")
+# change the nodelabels to this
+nodelabs.df <- data.frame(oldlabs = nodes, newlabs = nodelabs)
+mcmc.long <- mcmc.long %>%
+  mutate(node = nodelabs.df$newlabs[match(node, nodelabs.df$oldlabs)]) %>%
+  # make a factor for keeping the order consistent
+  mutate(node = factor(node, levels = unique(node)))
+
+# and regenerate the figure
+p.y <- ggplot(mcmc.long, aes(x=run, y = age, fill = run, color = run)) +
+  facet_wrap(~node) +
+  geom_violin() +
+  theme_bw() +
+  theme(legend.position = "bottom", axis.text.x = element_blank(),
+        strip.text = element_text(size = 4))
+p.y
+
+
+```
+
+## Figure S6
+
+To recreate figure S6, the following code can be used. The panels were combined manually for the manuscript.
+
+```{r}
+# load packages
+library(tidyverse)
+library(ape)
+library(ggpubr)
+
+
+# read trees identified as putatively introgressed
+trees <- read_tsv("figure_s6.introgressed_trees.txt") %>%
+  mutate(chromosome = chrom) %>%
+  select("chromosome","start","end","tree","tree_full")
+
+# fetch fd estimates in 10k windows
+fd <- read_csv("figure_s6_s8.fd.csv") %>%
+  mutate(chromosome = scaffold) %>%
+  # remove the Y chromosome
+  filter(chromosome != "NC_027914.1") %>%
+  # remove windows with fd below -1 and above 1
+  filter(fd >= -1) %>%
+  filter(fd <= 1)
+
+# read dxy
+dxy <- read_tsv("figure_s6_s8.dxy.txt") %>%
+  mutate(start = window_pos_1, end = window_pos_2)  %>%
+  # remove the Y chromosome
+  filter(chromosome != "NC_027914.1") %>%
+  # remove sites with less than 1,000 sites
+  filter(no_sites >= 1000)
+
+# get dxy and fd for the trees
+trees_joint <- dxy %>%
+  # filter the dxy to only keep relevant comparisons and pivot wider
+  filter(pop1 %in% c("C_denti","C_wolfi","C_m_opisthostictus","C_m_stuhlmanni") &
+           pop2 %in% c("C_denti","C_wolfi","C_m_opisthostictus","C_m_stuhlmanni")) %>%
+  # pivot wide
+  select(c("pop1","pop2","avg_dxy","chromosome","start","end")) %>%
+  pivot_wider(names_from = c("pop1","pop2"), values_from = avg_dxy, names_prefix = "dxy_") %>%
+  left_join(.,trees, by = c("chromosome","start","end")) %>%
+  mutate(is_introgressed = ifelse(!is.na(tree),TRUE,FALSE))
+
+# get the fd values
+trees_joint <- fd %>% select("chromosome","start","end","fd") %>%
+  left_join(.,trees_joint, by = c("chromosome","start","end")) %>%
+  mutate(is_introgressed = ifelse(!is.na(tree),TRUE,FALSE))
+
+nrow(trees_joint[which(trees_joint$is_introgressed == FALSE),])
+# 276446
+nrow(trees_joint[which(trees_joint$is_introgressed == TRUE),])
+# 11
+
+# make a big plot of the dxy values
+p.dxy <- trees_joint %>%
+  pivot_longer(cols = 5:10, names_to = "stat") %>%
+  filter(!is.na(value)) %>%
+  ggplot(., aes(x = is_introgressed, y = value, fill = is_introgressed)) +
+  facet_wrap(~stat) +
+  ylim(c(0,0.03)) +
+  geom_boxplot(outlier.shape = NA) +
+  theme_bw() +
+  theme(legend.position = "none")
+
+# and the fd  
+p.fd <- trees_joint %>%
+  filter(!is.na(fd)) %>%
+  ggplot(., aes(x = is_introgressed, y = fd, fill = is_introgressed)) +
+  geom_boxplot(outlier.shape = NA) +
+  theme_bw() +
+  theme(legend.position = "none")
+
+p.dxy
+p.fd
+
+```
+
+## Figure S7
+
+```{r}
+# load libs
+library(tidyverse)
+library(ggpubr)
+
+# use X and Y-chromosome mapping coverage to look for the PAR
+mapdp.x <- read_tsv("figure_s7.xcoverage.txt")
+mapdp.y <- read_tsv("figure_s7.ycoverage.txt")
+# average autosomal coverage for normalizing
+auto.dp <- read_tsv("figure_s7.average_auto_coverage.txt") %>%
+  select(sample,mean.dp)
+# combine x and y coverage and normalize by autosomal dp
+mapdp <- mapdp.x %>%
+  add_row(mapdp.y) %>%
+  # add autosomal average dp as column
+  left_join(., auto.dp, by = "sample") %>%
+  mutate(normcov = dp / mean.dp)
+# we'll use a table with sex id's for all samples to separate males from females
+sex_assignments <- read_tsv("sex_ids.txt")
+mapdp <- mapdp %>%
+  left_join(.,sex_assignments, by = "sample")
+# summarize normalized dp per sex
+dp.per.sex <- mapdp %>%
+  group_by(sex,start,end,chrom) %>%
+  summarize(mean_dp = mean(normcov))
+dp.per.sex
+# add cumulative positions to Y-chrom windows so that we can plot them
+# after eachother
+ystart <- max(mapdp$end[which(mapdp$chrom == "NC_041774.1")])
+dp.per.sex <- dp.per.sex %>%
+  mutate(cumulative = ifelse(chrom == "NC_027914.1", end + ystart, end))
+# we know from focused explorations (and we'll see that again in detail soon) that 
+# the PAR is at the beginning of the x chromosome, up until ca 2.36 Mb
+# plot coverage per sex and highlight par
+p <- dp.per.sex %>%
+  # relabel the chromosomes
+  mutate(chrom = factor(chrom, levels = c("NC_027914.1","NC_041774.1"),
+                        labels = c("Ychrom","Xchrom"))) %>%
+  ggplot(aes(x = cumulative, y = mean_dp, color = chrom)) +
+  facet_wrap(~sex, nrow = 2) +
+  # highlight the approximate par region
+  annotate("rect", xmin = 0, xmax = 2360000, ymin = -Inf, ymax = Inf,fill = "#0000ff30",
+            size = 0) +
+  geom_line() +
+  theme_bw() +
+  theme(axis.text.x = element_blank()) +
+  labs(y = "Normalized mapping depth", x = "", color = "Chromosome") +
+  ylim(c(-3,3)) 
+# make a plot with the difference in coverage between males and females
+p.diff <- dp.per.sex %>%
+    mutate(chrom = factor(chrom, levels = c("NC_027914.1","NC_041774.1"),
+                        labels = c("Ychrom","Xchrom"))) %>%
+  pivot_wider(names_from = sex, values_from = mean_dp) %>%
+  mutate(diff = female - male) %>%
+  ggplot(aes(x = cumulative, y = diff, color = chrom)) +
+    annotate("rect", xmin = 0, xmax = 2360000, ymin = -Inf, ymax = Inf,fill = "#0000ff30",
+            size = 0) +
+  geom_line() +
+  theme_bw() +
+  theme() +
+  labs(y = "F depth - M depth", x = "Genomic position", color = "Chromosome") +
+  ylim(c(-2,2))
+
+# arrange these
+arr <- ggarrange(p,p.diff,nrow=2, heights = c(2,1), legend = "top", common.legend = T)
+
+# zoom in around par
+
+# zoom in on the first ~ 3 Mb
+p.zoom <- dp.per.sex %>%
+  filter(chrom == "NC_041774.1" & end < 3000000) %>%
+  ggplot(aes(x = cumulative, y = mean_dp)) +
+  facet_wrap(~sex, nrow = 2) +
+  annotate("rect", xmin = 0, xmax = 2360000, ymin = -Inf, ymax = Inf,fill = "#0000ff30",
+            size = 0) +
+  geom_line() +
+  theme_bw() +
+  theme(axis.text.x = element_blank()) +
+  labs(y = "Normalized mapping depth", x = "") +
+  ylim(c(-3,3))
+
+p.diff.zoom <- dp.per.sex %>%
+  filter(chrom == "NC_041774.1" & end < 3000000) %>%
+  pivot_wider(names_from = sex, values_from = mean_dp) %>%
+  mutate(diff = female - male) %>%
+  ggplot(aes(x = cumulative, y = diff)) +
+  geom_line() +
+  annotate("rect", xmin = 0, xmax = 2360000, ymin = -Inf, ymax = Inf,fill = "#0000ff30",
+            size = 0) +
+  theme_bw() +
+  labs(y = "Difference", x = "Genomic position") +
+  ylim(c(-2,2))
+
+arr.zoom<- ggarrange(p.zoom,p.diff.zoom,nrow=2, heights = c(2,1), legend = "top", common.legend = T)
+
+# do a plot of the Y chromosome too
+p.yzoom <- dp.per.sex %>%
+  filter(chrom == "NC_027914.1") %>%
+  ggplot(aes(x = start, y = mean_dp)) +
+  facet_wrap(~sex, nrow = 2) +
+  geom_line() +
+  theme_bw() +
+  theme(axis.text.x = element_blank()) +
+  labs(y = "Normalized mapping depth", x = "") +
+  ylim(c(-3,3))
+p.yzoom
+
+p.diff.yzoom <- dp.per.sex %>%
+  filter(chrom == "NC_027914.1") %>%
+  pivot_wider(names_from = sex, values_from = mean_dp) %>%
+  mutate(diff = female - male) %>%
+  ggplot(aes(x = start, y = diff)) +
+  geom_line() +
+  theme_bw() +
+  labs(y = "Difference", x = "Genomic position") +
+  ylim(c(-2,2))
+
+arr.yzoom <- ggarrange(p.yzoom,p.diff.yzoom,nrow=2, heights = c(2,1), legend = "top", common.legend = T)
+arr.yzoom
+
+# arranged the zoomed plots
+arr.zoom.xy <- ggarrange(arr.zoom,arr.yzoom,ncol = 2, widths = c(1,1.5))
+
+# and arrange everything together, to a figure that we can then style with a gui of choice
+arr.cov <- ggarrange(arr,arr.zoom.xy, ncol = 1, heights = c(1.5,1))
+arr.cov
+```
+
+## Figure S8A
+
+```{r}
+
+# read dxy and fd in 10k windows
+dxy <- read_tsv("figure_s6_s8.dxy.txt") %>%
+  # keep only denti comparisons
+  filter(pop1 == "C_denti" | pop2 == "C_denti") %>%
+  # and remove pogonias
+  filter(pop1 != "C_pogonias") %>%
+  filter(pop2 != "C_pogonias") %>%
+  # remove windows with less than 1,000 sites
+  filter(no_sites >= 1000) %>%
+  # pivot wide
+  select(c("pop1","pop2","avg_dxy","chromosome","window_pos_1","window_pos_2")) %>%
+  pivot_wider(names_from = "pop2", values_from = avg_dxy, names_prefix = "dxy_")
+
+fd <- read_csv("figure_s6_s8.fd.csv")
+
+# combine fd and dxy table
+joint <- fd %>%
+  select(scaffold,start,end,fd) %>%
+  rename(chromosome = scaffold, window_pos_1 = start, window_pos_2 = end) %>%
+  select(chromosome, window_pos_1, window_pos_2, fd) %>%
+  right_join(., dxy, by = c("chromosome","window_pos_1","window_pos_2"))
+
+# add PAR info to table
+joint <- joint %>%
+  mutate(chrom_w_par = ifelse(chromosome == "NC_041774.1" & 
+                                window_pos_2 <= 2360000, "par", chromosome)) %>%
+  mutate(chrom_w_par = ifelse((chrom_w_par != "par" & chromosome != "NC_041774.1"), "autosome", chrom_w_par)) %>%
+  mutate(chrom_w_par = ifelse(chromosome == "NC_027914.1", "ychrom", chrom_w_par))
+
+p <- joint %>%
+  # remove fds below -1/ above 1
+  filter(fd >= -1 & fd <= 1) %>% 
+  ggplot(.,aes(x = chrom_w_par, color = chrom_w_par, y = fd)) +
+  geom_point(position = position_jitter(height = 0, width = .05), alpha = .5) +
+  geom_boxplot() +
+    theme_bw() +
+  theme(legend.position = "none") +
+  labs(x = "")
+
+# dxy denti vs. mitis
+dxy <- joint %>%
+  # remove the ones with outlier fds for consistency
+  filter(fd >= -1 & fd <= 1) %>% 
+  ggplot(.,aes(x = chrom_w_par, color = chrom_w_par, y = dxy_C_m_opisthostictus)) +
+  geom_point(position = position_jitter(height = 0, width = .05), alpha = .5) +
+  geom_boxplot() +
+    theme_bw() +
+  theme(legend.position = "none") +
+  labs(x = "")
+dxy
+
+# d
+dxy.wolfi <- joint %>%
+  filter(fd >= -1 & fd <= 1) %>% 
+  ggplot(.,aes(x = chrom_w_par, color = chrom_w_par, y = dxy_C_wolfi)) +
+  geom_point(position = position_jitter(height = 0, width = .05), alpha = .5) +
+  geom_boxplot() +
+    theme_bw() +
+  theme(legend.position = "none") +
+  labs(x = "")
+dxy.wolfi
+
+# arrange them
+pardiv.arr  <- ggarrange(p,dxy,dxy.wolfi, ncol = 1)
+pardiv.arr
+
+
+```
+
+## Figure S8D
+
+```{r}
+# load libs
+library(tidyverse)
+# read in fd estimated from simulated parlike-regions
+d <- read_csv("figure_s8d_fd_sim.csv")
+
+d <- d %>%
+  # add chromtype col (Y, auto, par)
+  mutate(chromtype = ifelse(start == 1, "Y", "auto")) %>%
+  mutate(chromtype = ifelse(start <= 150001 & chromtype != "Y", "par", chromtype)) %>%
+  mutate(y_distance = ifelse(chromtype == "par", start - 50000, "unlinked")) %>%
+  mutate(y_distance = ifelse(chromtype == "Y", "Y", y_distance))
+
+# make a summary table for mean values, we'll use this to annotate the plot below
+dsum <- d %>%
+  group_by(gf_prop, rho_factor, start,chromtype) %>%
+  summarize(mean_fd = mean(fd, na.rm = T)) %>%
+  mutate(start = factor(start, levels = unique(start)))
+ 
+parsimsplot <- d %>%
+  # use the simulations with 1 % gene flow
+  filter(gf_prop == 0.01) %>%
+  # plot r-factors of 1,10 and 20
+  filter(rho_factor %in% c(1,10,20)) %>%
+  mutate(start = factor(start, levels = unique(start))) %>%
+  ggplot(., aes(x = start, y = fd, color = chromtype)) +
+  facet_wrap(~rho_factor, ncol = 1) +
+  # connect the different simulations with grey lines
+  geom_path(aes(group = scaffold), position = position_jitter(width = .3, height = 0, seed = 12345), alpha = .3, color = "gray") +
+  geom_point(position = position_jitter(width = .3, height = 0, seed = 12345)) +
+  geom_label(data = dsum[which(dsum$gf_prop == 0.01 & dsum$start != 1 & dsum$rho_factor %in% c(1,10,20)),],
+            aes(label = round(mean_fd, 3), y = .75)) +
+  theme_bw() +
+  scale_color_manual(values = rev(c("#C77BFF", "#00C0C4", "#F8766D"))) +
+  theme(legend.position = "none")
+# and that's it, just takes a little post-styling to get figure S8D
+parsimsplot
+
+
+```
+
+## Figure S11
+
+```{r}
+library(tidyverse)
+
+# read the counts of sister relationships between denti and mitis under different 
+# gene flow props
+counts <- read_tsv("figure_s11.txt")
+
+# order by geneflow proportion
+counts <- counts %>%
+  arrange(GeneFlowProp) %>%
+  # change number of fixation events to percentage values (all simulations were simulated in 1,000 replicates, so jiust divide counts by 1000)
+  mutate(percent_fixed = (Count / 1000) * 100) %>%
+  # change prop to percentage
+  mutate(percentage_geneflow = GeneFlowProp * 100) %>%
+  # factor from gene flow percentage
+  mutate(percentage_geneflow = factor(percentage_geneflow,
+                                      levels = unique(percentage_geneflow)))
+
+# and plot it
+py <- ggplot(counts, aes(x = percentage_geneflow, y = percent_fixed)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = .15, height = 0, alpha = .3) +
+  labs(y = "C. denti/C. mitis monophyly (%)", x = "Percentage of gene flow C. mitis -> C. denti") +
+  theme_bw() +
+  theme(plot.background = element_blank())
+py
+
+```
+
+## Figure S12
+
+Figure S12 visualizes the coverage ratio between C. denti and C. wolfi males along the Y chromosomes, to explore the putative ampliconic region. The following code will recreate that figure.
+
+```{r}
+# load libs
+library(tidyverse)
+
+# read y coverage
+ycov <- read_tsv("figure_s12_s13_s15_ycoverage.txt")
+
+# normalize by average coverage
+ysum <- ycov %>%
+  group_by(sample) %>%
+  summarize(mean_dp = mean(dp))
+ycov <- ycov %>%
+  mutate(normcov = dp / ysum$mean_dp[match(sample, ysum$sample)])
+
+# pivot the table to have sample coverages as unique columns
+ycov_wide <- ycov %>% 
+  pivot_wider(id_cols = c(chrom,start,end), names_from = sample,
+                     values_from = normcov) %>%
+  # calculate the ratios for the male denti/wolfi combinations
+  mutate(denti_wolfi_ratio_1 = FK104_C_denti / JH010_C_wolfi_elegans) %>%
+  mutate(denti_wolfi_ratio_2 = FK104_C_denti / PPN005_C_wolfi_wolfi)
+  
+# plot the ratios along the y
+yratio <- ycov_wide %>%
+  # filter out regions where any of the males have low normalized coverage, as those can get distorted ratios
+  filter(FK104_C_denti > .8 & PPN005_C_wolfi_wolfi >= .8 &
+                      JH010_C_wolfi_elegans > .8) %>%
+  ggplot(., aes(x = start, y = denti_wolfi_ratio_2)) +
+  # the putative ampliconic region is arond ~8.65-9 Mb, highlight in grey
+  geom_rect(aes(xmin = 8500000, xmax = 9000000, ymin = 0, ymax = 10), fill = "lightgrey") +
+  geom_line() +
+  geom_line(color = "blue", aes(x = start, y = denti_wolfi_ratio_1)) +
+  theme_bw() +
+  labs(y = "C. denti / C. wolfi normalized coverage ratio",x = "Position on rhesus macaque Y chromosome")
+
+yratio
+
+```
+
+## Figure S13
+
+This figure also looks at mapping coverage on the Y, but compares a bunch of additional species. Created with the following code.
+
+```{r}
+# load libs
+library(tidyverse)
+
+# read y coverage
+ycov <- read_tsv("figure_s12_s13_s15_ycoverage.txt")
+
+# normalize by average coverage
+ysum <- ycov %>%
+  group_by(sample) %>%
+  summarize(mean_dp = mean(dp))
+ycov <- ycov %>%
+  mutate(normcov = dp / ysum$mean_dp[match(sample, ysum$sample)])
+
+# vector with the mona and mitis group samples to check
+
+mona_mitis_samples <- c("SAMN13555780_Cercopithecus_mona",
+                        "FK104_C_denti",
+                        "PD_0043_Cercopithecus_lowei_ssp",
+                        "PD_0096_Cercopithecus_mitis",
+                        "PD_0092_Cercopithecus_pogonias",
+                        "ME403_C_mitis_stuhlmanni",
+                        "JH010_C_wolfi_elegans",
+                        "PD_0033_Cercopithecus_nictitans_nictitans",
+                        "PPN005_C_wolfi_wolfi"
+                        )
+
+# make a factor
+ycov$sample <- factor(ycov$sample, levels = mona_mitis_samples)
+# remove redundant sampls
+mona.ycov.p <- ycov %>% filter(sample %in% mona_mitis_samples) %>%
+  ggplot(aes(x = start, y = normcov)) +
+  geom_rect(xmin = 8500000, xmax = 9000000, fill = "pink", ymin = 0, ymax = 31) +
+  facet_wrap(~sample, ncol = 2) +
+  geom_line() +
+  geom_hline(yintercept = 1, color = "red", linetype = "dashed") +
+  ylim(c(0,30)) +
+  labs(x = "Y-chromosomal position (bp)", y = "Normalized mapping depth") +
+  theme_bw()
+
+mona.ycov.p
+
+```
+
+## Figure S14
+
+This figure is essentially the same as S12 but for the X chromosome instead, plotted with the following code.
+
+```{r}
+# load libs
+library(tidyverse)
+
+# read y coverage
+xcov <- read_tsv("figure_s14_xcoverage.txt")
+
+# normalize by average coverage
+xsum <- xcov %>%
+  group_by(sample) %>%
+  summarize(mean_dp = mean(dp))
+xcov <- xcov %>%
+  mutate(normcov = dp / xsum$mean_dp[match(sample, xsum$sample)])
+
+# filter out the denti and wolfi samples, and pivot wide
+xcov.wide <- xcov %>%
+  filter(sample %in% c("FK104_C_denti","JH010_C_wolfi_elegans",
+                       "JH026_C_denti","PPN005_C_wolfi_wolfi",
+                       "GP611_C_wolfi_elegans")) %>% 
+  pivot_wider(id_cols = c(chrom,start,end), names_from = sample,
+                        values_from = normcov) %>%
+  # calculate ratios to a new column
+  mutate(FK104_JH010_ratio = FK104_C_denti / JH010_C_wolfi_elegans,
+         FK104_PPN005_ratio = FK104_C_denti / PPN005_C_wolfi_wolfi,
+         FK104_GP611_ratio = FK104_C_denti / GP611_C_wolfi_elegans,
+         JH026_JH010_ratio = JH026_C_denti / JH010_C_wolfi_elegans,
+         JH026_PPN005_ratio = JH026_C_denti / PPN005_C_wolfi_wolfi,
+         JH026_GP611_ratio = JH026_C_denti / GP611_C_wolfi_elegans)
+
+# remove regions with low coverage
+normcoverage_cutoff = .5
+p.xratio <- xcov.wide %>%
+  filter(FK104_C_denti >= normcoverage_cutoff) %>%
+  filter(JH026_C_denti >= normcoverage_cutoff) %>%
+  filter(JH010_C_wolfi_elegans >= normcoverage_cutoff) %>%
+  filter(PPN005_C_wolfi_wolfi >= normcoverage_cutoff) %>%
+  filter(GP611_C_wolfi_elegans >= normcoverage_cutoff) %>%
+  select(c(chrom,start,end,FK104_JH010_ratio,FK104_PPN005_ratio,
+           JH026_JH010_ratio,JH026_PPN005_ratio,
+           FK104_GP611_ratio,JH026_GP611_ratio)) %>%
+  pivot_longer(cols = c(FK104_JH010_ratio,FK104_PPN005_ratio,
+                        JH026_JH010_ratio,JH026_PPN005_ratio,
+                        FK104_GP611_ratio,JH026_GP611_ratio),
+               names_to = "comp",
+               values_to = "ratio") %>%
+  ggplot(aes(x = start, y = ratio)) +
+  geom_line() +
+  facet_wrap(~comp, nrow = 6) +
+  theme_bw() +
+  labs(x = "Position on rhesus macaque X",
+       y = "Normalized coverage ratio C. denti / C. wolfi")
+
+p.xratio
+
+
+```
+
+## Figure S15
+
+Back to the Y chromosome coverage, this figure visualizes the relative increase in Y coverage of males in the putative ampliconic region, for all males in our dataset grouped on species/species group. Recreate with the following code.
+
+```{r}
+
+# load libs
+library(tidyverse)
+
+# read y coverage
+ycov <- read_tsv("figure_s12_s13_s15_ycoverage.txt")
+
+# normalize by average coverage
+ysum <- ycov %>%
+  group_by(sample) %>%
+  summarize(mean_dp = mean(dp))
+ycov <- ycov %>%
+  mutate(normcov = dp / ysum$mean_dp[match(sample, ysum$sample)])
+
+# pull out the putative ampliconic region
+cov.ampreg <- ycov %>% filter(start >= 8650000 & end <= 9000000) %>%
+  # filter out the females (removing all samples with mean Y coverage < 5 is a quick way that does the trick)
+  filter(sample %in% ysum$sample[which(ysum$mean_dp > 5)])
+
+# do a sumtable where we can order them bu mean coverage in this region
+ampreg.sum <- cov.ampreg %>%
+  group_by(sample) %>%
+  summarize(meancov = mean(normcov),
+            medcov = median(normcov))
+unique(ampreg.sum$sample)
+# and a vector with genus/species group for ordering (based on the order of the sample col in amreg.sum)
+groups <- c("mona","hamlyni","mona","mitis",
+            "allenopithecus","allochrocebus","mitis","erythrocebus",
+            "cephus","mona","neglectus","diana","erythrocebus","mitis",
+            "cephus","mona","cephus","cephus","mitis","allenopithecus",
+            "allochrocebus","chlorocebus","cephus","neglectus","papionini",
+            "mona","chlorocebus","chlorocebus","papionini","mona","mona",
+            "mona","mona","mona","mona","mona","mitis")
+
+ampreg.sum$group <- groups
+
+ampreg.sum <- ampreg.sum %>% arrange(-meancov)
+
+# and bind the group info to cov.ampreg
+cov.ampreg <- cov.ampreg %>% 
+  mutate(group = ampreg.sum$group[match(sample, ampreg.sum$sample)])
+
+# make bamfile and group factors
+cov.ampreg$sample <- factor(cov.ampreg$sample, levels = unique(ampreg.sum$sample))
+cov.ampreg$group <- factor(cov.ampreg$group, levels = unique(ampreg.sum$group))
+
+# plot
+p <- cov.ampreg %>%
+  mutate(relative_start = start - 8650001) %>%
+  # remove overlapping windows
+  filter(relative_start %% 5000 == 0) %>%
+  ggplot(aes(x = sample, y = normcov, color = group)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = .05, alpha = .2) +
+  facet_wrap(~group, scales = "free_x") +
+  theme(legend.position = "none", axis.text.x = element_blank())
+p
+# we can annotate with species but will be a mess, so will clean this up in postprocessing
+p + theme(axis.text.x = element_text(size = 4, angle = 60,
+                                     hjust = 1, vjust = 1))
+
+
+
+```

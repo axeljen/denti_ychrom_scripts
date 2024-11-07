@@ -8,6 +8,8 @@ output:
 
 This markdown file contains code necessary to recreate (most of) the figures from the manuscript 'Y chromosome introgression between deeply divergent primate species', by Jensen et al. 2024.
 
+The data necessary to run these scripts are available as a source_data file together with the publication.
+
 Phylogenetic trees are not included here, as they were generated with gui software (TreeViewer).
 
 ## Figure 2
